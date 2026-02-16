@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AREAA Policy Summit Appointment Manager</title>
+    <title>Appointment Manager</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -16,31 +16,126 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Storage wrapper for persistent data
-        const storage = {
-            async get(key) {
+        // ========================================
+        // AIRTABLE CONFIGURATION
+        // PASTE YOUR CREDENTIALS HERE:
+        // ========================================
+        const AIRTABLE_TOKEN = 'patDk4MbJye56rXtT.9791a79c458e121870c275cca094e9bfc68bebb7204cc67b05ecfd90057d292b';  // Starts with 'pat...'
+        const AIRTABLE_BASE_ID = 'appcIA047ZEavf531/tbl7HlxfNK7lDY5Wz/viwwzso53dxXislwD?blocks=hide';              // Starts with 'app...'
+        const AIRTABLE_TABLE_NAME = 'Meetings';
+        // ========================================
+
+        // Airtable API wrapper
+        const airtable = {
+            async getAll() {
                 try {
-                    const result = await window.storage.get(key, false);
-                    return result ? JSON.parse(result.value) : null;
+                    const response = await fetch(
+                        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?sort%5B0%5D%5Bfield%5D=date&sort%5B0%5D%5Bdirection%5D=asc`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`Airtable error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    return data.records.map(record => ({
+                        id: record.id,
+                        ...record.fields
+                    }));
                 } catch (error) {
+                    console.error('Error fetching from Airtable:', error);
+                    alert('Error loading meetings. Check your Airtable credentials.');
+                    return [];
+                }
+            },
+
+            async create(fields) {
+                try {
+                    const response = await fetch(
+                        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ fields })
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`Airtable error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    return {
+                        id: data.id,
+                        ...data.fields
+                    };
+                } catch (error) {
+                    console.error('Error creating record:', error);
+                    alert('Error saving meeting. Please try again.');
                     return null;
                 }
             },
-            async set(key, value) {
+
+            async update(id, fields) {
                 try {
-                    await window.storage.set(key, JSON.stringify(value), false);
-                    return true;
+                    const response = await fetch(
+                        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}/${id}`,
+                        {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ fields })
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`Airtable error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    return {
+                        id: data.id,
+                        ...data.fields
+                    };
                 } catch (error) {
-                    console.error('Storage error:', error);
-                    return false;
+                    console.error('Error updating record:', error);
+                    alert('Error updating meeting. Please try again.');
+                    return null;
                 }
             },
-            async delete(key) {
+
+            async delete(id) {
                 try {
-                    await window.storage.delete(key, false);
+                    const response = await fetch(
+                        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}/${id}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`Airtable error: ${response.status}`);
+                    }
+                    
                     return true;
                 } catch (error) {
-                    console.error('Storage error:', error);
+                    console.error('Error deleting record:', error);
+                    alert('Error deleting meeting. Please try again.');
                     return false;
                 }
             }
@@ -63,16 +158,9 @@
 
             const loadAppointments = async () => {
                 setLoading(true);
-                const saved = await storage.get('appointments');
-                if (saved) {
-                    setAppointments(saved);
-                }
+                const data = await airtable.getAll();
+                setAppointments(data);
                 setLoading(false);
-            };
-
-            const saveAppointments = async (newAppointments) => {
-                await storage.set('appointments', newAppointments);
-                setAppointments(newAppointments);
             };
 
             const handleLogin = () => {
@@ -90,24 +178,26 @@
             };
 
             const addAppointment = async (appointment) => {
-                const newAppointment = {
-                    ...appointment,
-                    id: Date.now().toString()
-                };
-                const updated = [...appointments, newAppointment];
-                await saveAppointments(updated);
+                const newRecord = await airtable.create(appointment);
+                if (newRecord) {
+                    setAppointments([...appointments, newRecord]);
+                }
             };
 
             const updateAppointment = async (id, updatedData) => {
-                const updated = appointments.map(apt => 
-                    apt.id === id ? { ...apt, ...updatedData } : apt
-                );
-                await saveAppointments(updated);
+                const updated = await airtable.update(id, updatedData);
+                if (updated) {
+                    setAppointments(appointments.map(apt => 
+                        apt.id === id ? updated : apt
+                    ));
+                }
             };
 
             const deleteAppointment = async (id) => {
-                const updated = appointments.filter(apt => apt.id !== id);
-                await saveAppointments(updated);
+                const success = await airtable.delete(id);
+                if (success) {
+                    setAppointments(appointments.filter(apt => apt.id !== id));
+                }
             };
 
             return (
@@ -116,9 +206,9 @@
                     <header className="bg-white shadow-md">
                         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center">
-                                <h1 className="text-3xl font-bold" style={{color: '#A6192e'}}>
+                                <h1 className="text-3xl font-bold" style={{color: '#A1692e'}}>
                                     <i className="fas fa-calendar-alt mr-3"></i>
-                                    Policy Summit Meeting Schedule
+                                    Meeting Schedule
                                 </h1>
                                 <div className="flex gap-3">
                                     <button
@@ -128,7 +218,7 @@
                                                 ? 'text-white'
                                                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                         }`}
-                                        style={view === 'public' ? {backgroundColor: '#A6192e'} : {}}
+                                        style={view === 'public' ? {backgroundColor: '#A1692e'} : {}}
                                     >
                                         <i className="fas fa-eye mr-2"></i>Public View
                                     </button>
@@ -140,7 +230,7 @@
                                                     ? 'text-white'
                                                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                             }`}
-                                            style={view === 'admin' ? {backgroundColor: '#A6192e'} : {}}
+                                            style={view === 'admin' ? {backgroundColor: '#A1692e'} : {}}
                                         >
                                             <i className="fas fa-lock mr-2"></i>Admin
                                         </button>
@@ -161,7 +251,7 @@
                     <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
                         {loading ? (
                             <div className="text-center py-12">
-                                <i className="fas fa-spinner fa-spin text-4xl" style={{color: '#A6192e'}}></i>
+                                <i className="fas fa-spinner fa-spin text-4xl" style={{color: '#A1692e'}}></i>
                                 <p className="mt-4 text-gray-600">Loading appointments...</p>
                             </div>
                         ) : view === 'public' ? (
@@ -190,7 +280,7 @@
                 <div className="max-w-md mx-auto mt-12">
                     <div className="bg-white rounded-xl shadow-lg p-8">
                         <div className="text-center mb-6">
-                            <i className="fas fa-shield-alt text-5xl mb-4" style={{color: '#A6192e'}}></i>
+                            <i className="fas fa-shield-alt text-5xl mb-4" style={{color: '#A1692e'}}></i>
                             <h2 className="text-2xl font-bold text-gray-800">Admin Access</h2>
                             <p className="text-gray-600 mt-2">Enter password to manage appointments</p>
                         </div>
@@ -202,12 +292,12 @@
                                 onKeyPress={(e) => e.key === 'Enter' && onLogin()}
                                 placeholder="Enter password"
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                style={{'--tw-ring-color': '#A6192e'}}
+                                style={{'--tw-ring-color': '#A1692e'}}
                             />
                             <button
                                 onClick={onLogin}
                                 className="w-full text-white py-3 rounded-lg font-medium transition hover:opacity-90"
-                                style={{backgroundColor: '#A6192e'}}
+                                style={{backgroundColor: '#A1692e'}}
                             >
                                 <i className="fas fa-sign-in-alt mr-2"></i>Login
                             </button>
@@ -277,7 +367,7 @@
                                             ? 'text-white'
                                             : 'bg-white text-gray-700 hover:bg-gray-100'
                                     }`}
-                                    style={viewMode === 'upcoming' ? {backgroundColor: '#A6192e'} : {}}
+                                    style={viewMode === 'upcoming' ? {backgroundColor: '#A1692e'} : {}}
                                 >
                                     Upcoming
                                 </button>
@@ -288,7 +378,7 @@
                                             ? 'text-white'
                                             : 'bg-white text-gray-700 hover:bg-gray-100'
                                     }`}
-                                    style={viewMode === 'all' ? {backgroundColor: '#A6192e'} : {}}
+                                    style={viewMode === 'all' ? {backgroundColor: '#A1692e'} : {}}
                                 >
                                     All
                                 </button>
@@ -303,7 +393,7 @@
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Search by Senator, Representative, State, or Zipcode..."
                                 className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent shadow-sm"
-                                style={{'--tw-ring-color': '#A6192e'}}
+                                style={{'--tw-ring-color': '#A1692e'}}
                             />
                             <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             {searchTerm && (
@@ -333,7 +423,7 @@
                                 <button
                                     onClick={() => setSearchTerm('')}
                                     className="mt-4 px-6 py-2 rounded-lg font-medium text-white transition hover:opacity-90"
-                                    style={{backgroundColor: '#A6192e'}}
+                                    style={{backgroundColor: '#A1692e'}}
                                 >
                                     Clear Search
                                 </button>
@@ -343,7 +433,7 @@
                         <div className="space-y-6">
                             {Object.keys(groupedByDate).map(date => (
                                 <div key={date} className="bg-white rounded-xl shadow-md overflow-hidden">
-                                    <div className="text-white px-6 py-3" style={{backgroundColor: '#A6192e'}}>
+                                    <div className="text-white px-6 py-3" style={{backgroundColor: '#A1692e'}}>
                                         <h3 className="text-lg font-bold">
                                             <i className="far fa-calendar mr-2"></i>
                                             {new Date(date).toLocaleDateString('en-US', { 
@@ -364,42 +454,42 @@
                                                         </h4>
                                                         <div className="space-y-1 text-gray-600">
                                                             <p>
-                                                                <i className="far fa-clock mr-2" style={{color: '#A6192e'}}></i>
+                                                                <i className="far fa-clock mr-2" style={{color: '#A1692e'}}></i>
                                                                 <strong>Time:</strong> {apt.time}
                                                             </p>
                                                             {apt.representativeName && (
                                                                 <p>
-                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A6192e'}}></i>
+                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Representative:</strong> {apt.representativeName}
                                                                 </p>
                                                             )}
                                                             {apt.senatorName && (
                                                                 <p>
-                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A6192e'}}></i>
+                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Senator:</strong> {apt.senatorName}
                                                                 </p>
                                                             )}
                                                             {apt.attendees && (
                                                                 <p>
-                                                                    <i className="fas fa-users mr-2" style={{color: '#A6192e'}}></i>
+                                                                    <i className="fas fa-users mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Attendees:</strong> {apt.attendees}
                                                                 </p>
                                                             )}
                                                             {apt.zipcode && (
                                                                 <p>
-                                                                    <i className="fas fa-map-pin mr-2" style={{color: '#A6192e'}}></i>
+                                                                    <i className="fas fa-map-pin mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Zipcode:</strong> {apt.zipcode}
                                                                 </p>
                                                             )}
                                                             {apt.staffer && (
                                                                 <p>
-                                                                    <i className="fas fa-user mr-2" style={{color: '#A6192e'}}></i>
+                                                                    <i className="fas fa-user mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Staffer:</strong> {apt.staffer}
                                                                 </p>
                                                             )}
                                                             {apt.meetingStatus && (
                                                                 <p>
-                                                                    <i className="fas fa-info-circle mr-2" style={{color: '#A6192e'}}></i>
+                                                                    <i className="fas fa-info-circle mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Status:</strong> {apt.meetingStatus}
                                                                 </p>
                                                             )}
@@ -471,52 +561,52 @@
                                                 </h3>
                                                 <div className="grid grid-cols-2 gap-4 text-gray-600">
                                                     <p>
-                                                        <i className="far fa-calendar mr-2" style={{color: '#A6192e'}}></i>
+                                                        <i className="far fa-calendar mr-2" style={{color: '#A1692e'}}></i>
                                                         {new Date(apt.date).toLocaleDateString()}
                                                     </p>
                                                     <p>
-                                                        <i className="far fa-clock mr-2" style={{color: '#A6192e'}}></i>
+                                                        <i className="far fa-clock mr-2" style={{color: '#A1692e'}}></i>
                                                         {apt.time}
                                                     </p>
                                                     {apt.state && (
                                                         <p>
-                                                            <i className="fas fa-flag mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-flag mr-2" style={{color: '#A1692e'}}></i>
                                                             {apt.state}
                                                         </p>
                                                     )}
                                                     {apt.representativeName && (
                                                         <p>
-                                                            <i className="fas fa-user-tie mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-user-tie mr-2" style={{color: '#A1692e'}}></i>
                                                             Rep: {apt.representativeName}
                                                         </p>
                                                     )}
                                                     {apt.senatorName && (
                                                         <p>
-                                                            <i className="fas fa-user-tie mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-user-tie mr-2" style={{color: '#A1692e'}}></i>
                                                             Sen: {apt.senatorName}
                                                         </p>
                                                     )}
                                                     {apt.attendees && (
                                                         <p>
-                                                            <i className="fas fa-users mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-users mr-2" style={{color: '#A1692e'}}></i>
                                                             {apt.attendees}
                                                         </p>
                                                     )}
                                                     {apt.zipcode && (
                                                         <p>
-                                                            <i className="fas fa-map-pin mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-map-pin mr-2" style={{color: '#A1692e'}}></i>
                                                             {apt.zipcode}
                                                         </p>
                                                     )}
                                                     {apt.staffer && (
                                                         <p>
-                                                            <i className="fas fa-user mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-user mr-2" style={{color: '#A1692e'}}></i>
                                                             {apt.staffer}
                                                         </p>
                                                     )}
                                                     {apt.meetingStatus && (
                                                         <p>
-                                                            <i className="fas fa-info-circle mr-2" style={{color: '#A6192e'}}></i>
+                                                            <i className="fas fa-info-circle mr-2" style={{color: '#A1692e'}}></i>
                                                             {apt.meetingStatus}
                                                         </p>
                                                     )}
@@ -611,7 +701,7 @@
                                     value={formData.date}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                    style={{'--tw-ring-color': '#A6192e'}}
+                                    style={{'--tw-ring-color': '#A1692e'}}
                                     required
                                 />
                             </div>
@@ -626,7 +716,7 @@
                                     value={formData.time}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                    style={{'--tw-ring-color': '#A6192e'}}
+                                    style={{'--tw-ring-color': '#A1692e'}}
                                     required
                                 />
                             </div>
@@ -641,7 +731,7 @@
                                 value={formData.state}
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                style={{'--tw-ring-color': '#A6192e'}}
+                                style={{'--tw-ring-color': '#A1692e'}}
                                 required
                             >
                                 <option value="">Select a state</option>
@@ -662,7 +752,7 @@
                                     value={formData.representativeName}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                    style={{'--tw-ring-color': '#A6192e'}}
+                                    style={{'--tw-ring-color': '#A1692e'}}
                                     placeholder="e.g., Rep. John Smith"
                                 />
                             </div>
@@ -677,7 +767,7 @@
                                     value={formData.senatorName}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                    style={{'--tw-ring-color': '#A6192e'}}
+                                    style={{'--tw-ring-color': '#A1692e'}}
                                     placeholder="e.g., Sen. Jane Doe"
                                 />
                             </div>
@@ -693,7 +783,7 @@
                                 value={formData.attendees}
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                style={{'--tw-ring-color': '#A6192e'}}
+                                style={{'--tw-ring-color': '#A1692e'}}
                                 placeholder="e.g., John, Mary, Michael"
                             />
                         </div>
@@ -709,7 +799,7 @@
                                     value={formData.zipcode}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                    style={{'--tw-ring-color': '#A6192e'}}
+                                    style={{'--tw-ring-color': '#A1692e'}}
                                     placeholder="e.g., 90210"
                                     maxLength="10"
                                 />
@@ -725,7 +815,7 @@
                                     value={formData.staffer}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                    style={{'--tw-ring-color': '#A6192e'}}
+                                    style={{'--tw-ring-color': '#A1692e'}}
                                     placeholder="Staffer name"
                                 />
                             </div>
@@ -740,7 +830,7 @@
                                 value={formData.meetingStatus}
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-                                style={{'--tw-ring-color': '#A6192e'}}
+                                style={{'--tw-ring-color': '#A1692e'}}
                             >
                                 <option value="">Select status</option>
                                 <option value="Scheduled">Scheduled</option>
@@ -755,7 +845,7 @@
                             <button
                                 type="submit"
                                 className="flex-1 text-white py-2 rounded-lg font-medium transition hover:opacity-90"
-                                style={{backgroundColor: '#A6192e'}}
+                                style={{backgroundColor: '#A1692e'}}
                             >
                                 <i className="fas fa-save mr-2"></i>Save
                             </button>
