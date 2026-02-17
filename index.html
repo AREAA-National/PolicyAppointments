@@ -180,8 +180,10 @@
             const addAppointment = async (appointment) => {
                 const newRecord = await airtable.create(appointment);
                 if (newRecord) {
-                    setAppointments([...appointments, newRecord]);
+                    setAppointments(prev => [...prev, newRecord]);
+                    return newRecord;
                 }
+                return false;
             };
 
             const updateAppointment = async (id, updatedData) => {
@@ -262,6 +264,7 @@
                                 onAdd={addAppointment}
                                 onUpdate={updateAppointment}
                                 onDelete={deleteAppointment}
+                                onReload={loadAppointments}
                             />
                         ) : (
                             <LoginForm
@@ -507,27 +510,279 @@
             );
         }
 
-        function AdminDashboard({ appointments, onAdd, onUpdate, onDelete }) {
+        // CSV/Excel utility functions
+        const FIELDS = ['date','time','state','representativeName','senatorName','attendees','zipcode','staffer','meetingStatus'];
+        const FIELD_LABELS = ['Date','Time','State','Representative Name','Senator Name','Attendees','Zipcode','Staffer','Meeting Status'];
+
+        function parseCSV(text) {
+            const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length < 2) return [];
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
+            const records = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                for (let c = 0; c < lines[i].length; c++) {
+                    const ch = lines[i][c];
+                    if (ch === '"') { inQuotes = !inQuotes; }
+                    else if (ch === ',' && !inQuotes) { values.push(current.trim()); current = ''; }
+                    else { current += ch; }
+                }
+                values.push(current.trim());
+                const record = {};
+                headers.forEach((h, idx) => {
+                    // Match header to field name (case-insensitive, ignore spaces)
+                    const normalized = h.toLowerCase().replace(/\s/g, '');
+                    const match = FIELDS.find(f => f.toLowerCase() === normalized) ||
+                                  FIELD_LABELS.find((l, li) => l.toLowerCase().replace(/\s/g,'') === normalized ? FIELDS[li] : null);
+                    const fieldName = FIELDS.find(f => f.toLowerCase() === normalized) ||
+                                      (() => { const li = FIELD_LABELS.findIndex(l => l.toLowerCase().replace(/\s/g,'') === normalized); return li >= 0 ? FIELDS[li] : h; })();
+                    record[fieldName] = values[idx] || '';
+                });
+                if (record.date || record.state) records.push(record);
+            }
+            return records;
+        }
+
+        function exportToCSV(appointments) {
+            const rows = [FIELD_LABELS.join(',')];
+            appointments.forEach(apt => {
+                const row = FIELDS.map(f => {
+                    const val = apt[f] || '';
+                    return val.includes(',') ? `"${val}"` : val;
+                });
+                rows.push(row.join(','));
+            });
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meetings_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportToExcel(appointments) {
+            // Build an HTML table that Excel can open natively
+            const headers = FIELD_LABELS.map(h => `<th>${h}</th>`).join('');
+            const rows = appointments.map(apt => {
+                const cells = FIELDS.map(f => `<td>${apt[f] || ''}</td>`).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table>${'<tr>' + headers + '</tr>'}${rows}</table></body></html>`;
+            const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meetings_${new Date().toISOString().split('T')[0]}.xls`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function AdminDashboard({ appointments, onAdd, onUpdate, onDelete, onReload }) {
             const [isAdding, setIsAdding] = useState(false);
             const [editingId, setEditingId] = useState(null);
+            const [importing, setImporting] = useState(false);
+            const [importPreview, setImportPreview] = useState([]);
+            const [importError, setImportError] = useState('');
+            const [importSuccess, setImportSuccess] = useState('');
 
             const sortedAppointments = [...appointments].sort((a, b) => 
                 new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time)
             );
 
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                setImportError('');
+                setImportSuccess('');
+                setImportPreview([]);
+
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (!['csv', 'xls', 'xlsx'].includes(ext)) {
+                    setImportError('Please upload a CSV or Excel (.xls, .xlsx) file.');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const text = event.target.result;
+                        const records = parseCSV(text);
+                        if (records.length === 0) {
+                            setImportError('No valid records found. Make sure your file has the correct column headers.');
+                            return;
+                        }
+                        setImportPreview(records);
+                    } catch (err) {
+                        setImportError('Error reading file. Please make sure it is a valid CSV.');
+                    }
+                };
+                reader.readAsText(file);
+                // Reset file input
+                e.target.value = '';
+            };
+
+            const handleConfirmImport = async () => {
+                setImporting(true);
+                let successCount = 0;
+                for (const record of importPreview) {
+                    const result = await onAdd(record);
+                    if (result !== false) successCount++;
+                }
+                setImporting(false);
+                setImportPreview([]);
+                setImportSuccess(`✅ Successfully imported ${successCount} meeting${successCount !== 1 ? 's' : ''}!`);
+                setTimeout(() => setImportSuccess(''), 5000);
+                if (onReload) onReload();
+            };
+
+            const handleCancelImport = () => {
+                setImportPreview([]);
+                setImportError('');
+            };
+
+            const downloadTemplate = () => {
+                const rows = [FIELD_LABELS.join(','), '2026-03-15,09:00,California,Rep. John Smith,Sen. Jane Doe,"John, Mary",90210,Alex Johnson,Confirmed'];
+                const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'meetings_template.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
             return (
                 <div>
-                    <div className="flex justify-between items-center mb-6">
+                    {/* Top Bar */}
+                    <div className="flex flex-wrap justify-between items-center mb-6 gap-3">
                         <h2 className="text-2xl font-bold text-gray-800">
                             Manage Meetings ({appointments.length})
                         </h2>
-                        <button
-                            onClick={() => setIsAdding(true)}
-                            className="text-white px-6 py-3 rounded-lg font-medium transition hover:opacity-90"
-                            style={{backgroundColor: '#228B22'}}
-                        >
-                            <i className="fas fa-plus mr-2"></i>Add New Meeting
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                            {/* Import Button */}
+                            <label className="cursor-pointer text-white px-4 py-2 rounded-lg font-medium transition hover:opacity-90 flex items-center gap-2" style={{backgroundColor: '#5b6abf'}}>
+                                <i className="fas fa-file-import"></i>
+                                Import CSV/Excel
+                                <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileUpload} className="hidden" />
+                            </label>
+
+                            {/* Template Download */}
+                            <button
+                                onClick={downloadTemplate}
+                                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-medium transition hover:opacity-90 flex items-center gap-2"
+                            >
+                                <i className="fas fa-download"></i>
+                                Template
+                            </button>
+
+                            {/* Export CSV */}
+                            <button
+                                onClick={() => exportToCSV(sortedAppointments)}
+                                disabled={appointments.length === 0}
+                                className="text-white px-4 py-2 rounded-lg font-medium transition hover:opacity-90 flex items-center gap-2 disabled:opacity-40"
+                                style={{backgroundColor: '#228B22'}}
+                            >
+                                <i className="fas fa-file-csv"></i>
+                                Export CSV
+                            </button>
+
+                            {/* Export Excel */}
+                            <button
+                                onClick={() => exportToExcel(sortedAppointments)}
+                                disabled={appointments.length === 0}
+                                className="text-white px-4 py-2 rounded-lg font-medium transition hover:opacity-90 flex items-center gap-2 disabled:opacity-40"
+                                style={{backgroundColor: '#1a6b2a'}}
+                            >
+                                <i className="fas fa-file-excel"></i>
+                                Export Excel
+                            </button>
+
+                            {/* Add New */}
+                            <button
+                                onClick={() => setIsAdding(true)}
+                                className="text-white px-4 py-2 rounded-lg font-medium transition hover:opacity-90 flex items-center gap-2"
+                                style={{backgroundColor: '#A1692e'}}
+                            >
+                                <i className="fas fa-plus"></i>
+                                Add New Meeting
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Success Message */}
+                    {importSuccess && (
+                        <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-800 rounded-lg font-medium">
+                            {importSuccess}
+                        </div>
+                    )}
+
+                    {/* Import Error */}
+                    {importError && (
+                        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-800 rounded-lg">
+                            <i className="fas fa-exclamation-circle mr-2"></i>{importError}
+                        </div>
+                    )}
+
+                    {/* Import Preview */}
+                    {importPreview.length > 0 && (
+                        <div className="mb-6 bg-white rounded-xl shadow-md overflow-hidden">
+                            <div className="px-6 py-4 text-white flex justify-between items-center" style={{backgroundColor: '#5b6abf'}}>
+                                <h3 className="text-lg font-bold">
+                                    <i className="fas fa-eye mr-2"></i>
+                                    Preview: {importPreview.length} meeting{importPreview.length !== 1 ? 's' : ''} ready to import
+                                </h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            {FIELD_LABELS.map(l => (
+                                                <th key={l} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">{l}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {importPreview.map((row, i) => (
+                                            <tr key={i} className="hover:bg-gray-50">
+                                                {FIELDS.map(f => (
+                                                    <td key={f} className="px-3 py-2 text-gray-700 whitespace-nowrap">{row[f] || '-'}</td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
+                                <button
+                                    onClick={handleCancelImport}
+                                    className="px-5 py-2 bg-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-400 transition"
+                                >
+                                    <i className="fas fa-times mr-2"></i>Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmImport}
+                                    disabled={importing}
+                                    className="px-5 py-2 text-white rounded-lg font-medium transition hover:opacity-90 disabled:opacity-60"
+                                    style={{backgroundColor: '#5b6abf'}}
+                                >
+                                    {importing ? (
+                                        <><i className="fas fa-spinner fa-spin mr-2"></i>Importing...</>
+                                    ) : (
+                                        <><i className="fas fa-check mr-2"></i>Confirm Import</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CSV Format Info */}
+                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        <strong>Import format:</strong> CSV or Excel with headers: {FIELD_LABELS.join(', ')}. 
+                        Click <strong>"Template"</strong> to download a sample file.
                     </div>
 
                     {isAdding && (
