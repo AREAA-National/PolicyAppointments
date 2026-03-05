@@ -149,7 +149,7 @@
             const [loading, setLoading] = useState(true);
             
             // Admin password - change this to whatever you want
-            const ADMIN_PASSWORD = 'policYAREAA26Admin!';
+            const ADMIN_PASSWORD = 'admin123';
 
             // Load appointments on mount
             useEffect(() => {
@@ -208,9 +208,9 @@
                     <header className="bg-white shadow-md">
                         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center">
-                                <h1 className="text-3xl font-bold" style={{color: '#A6192E'}}>
+                                <h1 className="text-3xl font-bold" style={{color: '#A1692e'}}>
                                     <i className="fas fa-calendar-alt mr-3"></i>
-                                    Policy Summit Hill Appointments Schedule
+                                    Meeting Schedule
                                 </h1>
                                 <div className="flex gap-3">
                                     <button
@@ -253,7 +253,7 @@
                     <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
                         {loading ? (
                             <div className="text-center py-12">
-                                <i className="fas fa-spinner fa-spin text-4xl" style={{color: '#A6192E'}}></i>
+                                <i className="fas fa-spinner fa-spin text-4xl" style={{color: '#A1692e'}}></i>
                                 <p className="mt-4 text-gray-600">Loading appointments...</p>
                             </div>
                         ) : view === 'public' ? (
@@ -283,7 +283,7 @@
                 <div className="max-w-md mx-auto mt-12">
                     <div className="bg-white rounded-xl shadow-lg p-8">
                         <div className="text-center mb-6">
-                            <i className="fas fa-shield-alt text-5xl mb-4" style={{color: '#A6192E'}}></i>
+                            <i className="fas fa-shield-alt text-5xl mb-4" style={{color: '#A1692e'}}></i>
                             <h2 className="text-2xl font-bold text-gray-800">Admin Access</h2>
                             <p className="text-gray-600 mt-2">Enter password to manage appointments</p>
                         </div>
@@ -300,7 +300,7 @@
                             <button
                                 onClick={onLogin}
                                 className="w-full text-white py-3 rounded-lg font-medium transition hover:opacity-90"
-                                style={{backgroundColor: '#A6192E'}}
+                                style={{backgroundColor: '#A1692e'}}
                             >
                                 <i className="fas fa-sign-in-alt mr-2"></i>Login
                             </button>
@@ -370,7 +370,7 @@
                                             ? 'text-white'
                                             : 'bg-white text-gray-700 hover:bg-gray-100'
                                     }`}
-                                    style={viewMode === 'upcoming' ? {backgroundColor: '#A6192E'} : {}}
+                                    style={viewMode === 'upcoming' ? {backgroundColor: '#A1692e'} : {}}
                                 >
                                     Upcoming
                                 </button>
@@ -381,7 +381,7 @@
                                             ? 'text-white'
                                             : 'bg-white text-gray-700 hover:bg-gray-100'
                                     }`}
-                                    style={viewMode === 'all' ? {backgroundColor: '#A6192E'} : {}}
+                                    style={viewMode === 'all' ? {backgroundColor: '#A1692e'} : {}}
                                 >
                                     All
                                 </button>
@@ -396,7 +396,7 @@
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Search by Senator, Representative, State, or Zipcode..."
                                 className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent shadow-sm"
-                                style={{'--tw-ring-color': '#A6192E'}}
+                                style={{'--tw-ring-color': '#A1692e'}}
                             />
                             <i className="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             {searchTerm && (
@@ -426,7 +426,7 @@
                                 <button
                                     onClick={() => setSearchTerm('')}
                                     className="mt-4 px-6 py-2 rounded-lg font-medium text-white transition hover:opacity-90"
-                                    style={{backgroundColor: '#A6192E'}}
+                                    style={{backgroundColor: '#A1692e'}}
                                 >
                                     Clear Search
                                 </button>
@@ -436,7 +436,7 @@
                         <div className="space-y-6">
                             {Object.keys(groupedByDate).map(date => (
                                 <div key={date} className="bg-white rounded-xl shadow-md overflow-hidden">
-                                    <div className="text-white px-6 py-3" style={{backgroundColor: '#A6192E'}}>
+                                    <div className="text-white px-6 py-3" style={{backgroundColor: '#A1692e'}}>
                                         <h3 className="text-lg font-bold">
                                             <i className="far fa-calendar mr-2"></i>
                                             {new Date(date).toLocaleDateString('en-US', { 
@@ -457,42 +457,42 @@
                                                         </h4>
                                                         <div className="space-y-1 text-gray-600">
                                                             <p>
-                                                                <i className="far fa-clock mr-2" style={{color: '#A6192E'}}></i>
+                                                                <i className="far fa-clock mr-2" style={{color: '#A1692e'}}></i>
                                                                 <strong>Time:</strong> {apt.time}
                                                             </p>
                                                             {apt.representativeName && (
                                                                 <p>
-                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A6192E'}}></i>
+                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Representative:</strong> {apt.representativeName}
                                                                 </p>
                                                             )}
                                                             {apt.senatorName && (
                                                                 <p>
-                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A6192E'}}></i>
+                                                                    <i className="fas fa-user-tie mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Senator:</strong> {apt.senatorName}
                                                                 </p>
                                                             )}
                                                             {apt.attendees && (
                                                                 <p>
-                                                                    <i className="fas fa-users mr-2" style={{color: '#A6192E'}}></i>
+                                                                    <i className="fas fa-users mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Attendees:</strong> {apt.attendees}
                                                                 </p>
                                                             )}
                                                             {apt.zipcode && (
                                                                 <p>
-                                                                    <i className="fas fa-map-pin mr-2" style={{color: '#A6192E'}}></i>
+                                                                    <i className="fas fa-map-pin mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Zipcode:</strong> {apt.zipcode}
                                                                 </p>
                                                             )}
-                                                            {apt.staffer && (
+                                                            {apt.meetingLocation && (
                                                                 <p>
-                                                                    <i className="fas fa-user mr-2" style={{color: '#A6192E'}}></i>
-                                                                    <strong>Staffer:</strong> {apt.staffer}
+                                                                    <i className="fas fa-map-marker-alt mr-2" style={{color: '#A1692e'}}></i>
+                                                                    <strong>Location:</strong> {apt.meetingLocation}
                                                                 </p>
                                                             )}
                                                             {apt.meetingStatus && (
                                                                 <p>
-                                                                    <i className="fas fa-info-circle mr-2" style={{color: '#A6192E'}}></i>
+                                                                    <i className="fas fa-info-circle mr-2" style={{color: '#A1692e'}}></i>
                                                                     <strong>Status:</strong> {apt.meetingStatus}
                                                                 </p>
                                                             )}
@@ -511,8 +511,8 @@
         }
 
         // CSV/Excel utility functions
-        const FIELDS = ['date','time','state','representativeName','senatorName','attendees','zipcode','staffer','meetingStatus'];
-        const FIELD_LABELS = ['Date','Time','State','Representative Name','Senator Name','Attendees','Zipcode','Staffer','Meeting Status'];
+        const FIELDS = ['date','time','state','representativeName','senatorName','attendees','zipcode','meetingLocation','meetingStatus'];
+        const FIELD_LABELS = ['Date','Time','State','Representative Name','Senator Name','Attendees','Zipcode','Meeting Location','Meeting Status'];
 
         function parseCSV(text) {
             const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
@@ -644,7 +644,7 @@
             };
 
             const downloadTemplate = () => {
-                const rows = [FIELD_LABELS.join(','), '2026-03-15,09:00,California,Rep. John Smith,Sen. Jane Doe,"John, Mary",90210,Alex Johnson,Confirmed'];
+                const rows = [FIELD_LABELS.join(','), '2026-03-15,09:00,California,Rep. John Smith,Sen. Jane Doe,"John, Mary",90210,District Office,Confirmed'];
                 const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -853,10 +853,10 @@
                                                             {apt.zipcode}
                                                         </p>
                                                     )}
-                                                    {apt.staffer && (
+                                                    {apt.meetingLocation && (
                                                         <p>
-                                                            <i className="fas fa-user mr-2" style={{color: '#A1692e'}}></i>
-                                                            {apt.staffer}
+                                                            <i className="fas fa-map-marker-alt mr-2" style={{color: '#A1692e'}}></i>
+                                                            {apt.meetingLocation}
                                                         </p>
                                                     )}
                                                     {apt.meetingStatus && (
@@ -904,7 +904,7 @@
                 senatorName: appointment?.senatorName || '',
                 attendees: appointment?.attendees || '',
                 zipcode: appointment?.zipcode || '',
-                staffer: appointment?.staffer || '',
+                meetingLocation: appointment?.meetingLocation || '',
                 meetingStatus: appointment?.meetingStatus || ''
             });
 
@@ -1062,16 +1062,16 @@
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Staffer
+                                    Meeting Location
                                 </label>
                                 <input
                                     type="text"
-                                    name="staffer"
-                                    value={formData.staffer}
+                                    name="meetingLocation"
+                                    value={formData.meetingLocation}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
                                     style={{'--tw-ring-color': '#A1692e'}}
-                                    placeholder="Staffer name"
+                                    placeholder="e.g., District Office, Capitol Building"
                                 />
                             </div>
                         </div>
